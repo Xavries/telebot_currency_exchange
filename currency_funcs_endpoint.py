@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import requests
 import psycopg2
 import time
@@ -34,32 +36,23 @@ def exchange_currency(exchange_message):
 
 def get_fxmarket_currencies():
     conn = psycopg2.connect("dbname=exchange_bot_db user=postgres password=postgres")
-    #cur.execute("CREATE TABLE test (id serial PRIMARY KEY, num integer, data varchar);")
     cur = conn.cursor()
 
-
-    #api_key = 'qKSMdVTy4MiefHpatSaB'
-
     available_currencies = 'https://fxmarketapi.com/apicurrencies'
-
-    #querystring_av = {"api_key":api_key_fx}
 
     get_currencies = str()
     
     ### fiest request: to get dict of available currencies for exchange
     available_currencies_dict_response = requests.get(available_currencies, params={"api_key":api_key_fx})
-    #available_currencies_dict_response =  {'currencies': {'USDAED': 'United Arab Emirates Dirham', 'USDARS': 'Argentine Peso', 'USDAUD': 'Australian Dollar', 'USDBRL': 'Brazilian Real', 'USDBTC': 'Bitcoin', 'USDCAD': 'Canadian Dollar', 'USDCHF': 'Swiss Franc', 'USDCLP': 'Chilean Peso', 'USDCNY': 'Chinese Yuan', 'USDCOP': 'Colombian Peso', 'USDCZK': 'Czech Koruna', 'USDDKK': 'Danish Krone', 'USDEUR': 'Euro', 'USDGBP': 'British Pound Sterling', 'USDHKD': 'Hong Kong Dollar', 'USDHUF': 'Hungarian Forint', 'USDHRK': 'Croatian Kuna', 'USDIDR': 'Indonesian Rupiah', 'USDILS': 'Israeli Sheqel', 'USDINR': 'Indian Rupee', 'USDISK': 'Icelandic Krona', 'USDJPY': 'Japanese Yen', 'USDKRW': 'South Korean Won', 'USDKWD': 'Kuwaiti Dinar', 'USDMXN': 'Mexican Peso', 'USDMYR': 'Malaysian Ringgit', 'USDMAD': 'Moroccan Dirham', 'USDNOK': 'Norwegian Krone', 'USDNZD': 'New Zealand Dollar', 'USDPEN': 'Peruvian Nuevo Sol', 'USDPHP': 'Philippine Peso', 'USDPLN': 'Polish Zloty', 'USDRON': 'Romanian Leu', 'USDRUB': 'Russian Ruble', 'USDSEK': 'Swedish Krona', 'USDSGD': 'Singapore Dollar', 'USDTHB': 'Thai Baht', 'USDTRY': 'Turkish Lira', 'USDTWD': 'Taiwanese Dollar', 'USDXAG': 'Silver (ounce)', 'USDXAU': 'Gold (ounce)', 'USDZAR': 'South African Rand'}}
-
+    
     for i in available_currencies_dict_response.json()['currencies']:
         get_currencies += i
         get_currencies += ','
 
     currencies = get_currencies[:-1]
-    #print(currencies)
     
     #### second request: to get dict with actual exchange rates. In current case: USD  to all another currencies
     exchange_rates_url = 'https://fxmarketapi.com/apilive?api_key={}&currency={}'.format(api_key_fx, currencies)
-    #response1 = {'price': {'USDAED': 3.67341, 'USDARS': 97.69935, 'USDAUD': 1.35768, 'USDBRL': 5.18603, 'USDBTC': 2e-05, 'USDCAD': 1.26199, 'USDCHF': 0.91546, 'USDCLP': 771.22518, 'USDCNY': 6.45971, 'USDCOP': 3759.5864, 'USDCZK': 21.888, 'USDDKK': 6.2805, 'USDEUR': 0.8446, 'USDGBP': 0.72613, 'USDHKD': 7.77724, 'USDHRK': 6.3263, 'USDHUF': 293.87799, 'USDIDR': 14239.86621, 'USDILS': 3.2069, 'USDINR': 72.99308, 'USDISK': 126.69412, 'USDJPY': 110.0295, 'USDKRW': 1156.21837, 'USDKWD': 0.30063, 'USDMAD': 8.94742, 'USDMXN': 19.99324, 'USDMYR': 4.15334, 'USDNOK': 8.69509, 'USDNZD': 1.41443, 'USDPEN': 4.09089, 'USDPHP': 49.92553, 'USDPLN': 3.8062, 'USDRON': 4.16848, 'USDRUB': 72.98147, 'USDSEK': 8.60906, 'USDSGD': 1.34463, 'USDTHB': 32.3155, 'USDTRY': 8.29781, 'USDTWD': 27.73255, 'USDXAG': 0.04142, 'USDXAU': 0.00055, 'USDZAR': 14.40648}, 'timestamp': 1630531330}
     exchange_rates_response = requests.get(exchange_rates_url)
 
     exchange_rates_dict = exchange_rates_response.json()
@@ -72,16 +65,14 @@ def get_fxmarket_currencies():
     ### checking if user made request again less then 10 min after previous request to deside where to get info:
     ### if less then 10 min - from db, if more - from new request to the exchange website
     if check_time[2] + 600 < exchange_rates_dict['timestamp']:
-        #print(exchange_rates_dict['timestamp'], type(exchange_rates_dict['timestamp']))
         for i in exchange_rates_dict['price']:
             columns += i[3:]
             columns += ' : '
             columns += "{:.2f}".format(exchange_rates_dict['price'][i])
             columns += '\n'
-            #cur.execute('INSERT INTO currency_exchange_rates (currency, value, timestamp) VALUES (%s, %s, %s);', (i[3:], "{:.2f}".format(exchange_rates_dict['price'][i]), exchange_rates_dict['timestamp']))
             cur.execute('UPDATE currency_exchange_rates SET value = %s, timestamp = %s WHERE currency = %s;', ("{:.2f}".format(exchange_rates_dict['price'][i]), exchange_rates_dict['timestamp'], i[3:]))
             conn.commit()
-            #### there is an ISSUE with two decimal precision - GOLD is too expansive for USD and we get value 0,0004. And with two decimal precision we get 0,00.
+            #### there is an ISSUE with two decimal precision - XAU GOLD is too expansive for USD and we get value 0,00055. And with two decimal precision we get 0,00.
 
         print('columns string: ', columns, '\n')
 
